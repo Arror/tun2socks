@@ -1,9 +1,8 @@
-//go:build !(linux && amd64) && !(linux && arm64)
-
 package tun
 
 import (
 	"fmt"
+	"os"
 	"sync"
 
 	"golang.zx2c4.com/wireguard/tun"
@@ -16,8 +15,6 @@ type TUN struct {
 	*iobased.Endpoint
 
 	nt     *tun.NativeTun
-	mtu    uint32
-	name   string
 	offset int
 
 	rSizes []int
@@ -27,45 +24,32 @@ type TUN struct {
 	wMutex sync.Mutex
 }
 
-func Open(name string, mtu uint32) (_ device.Device, err error) {
+func Open(fd int) (_ device.Device, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("open tun: %v", r)
 		}
 	}()
-
 	t := &TUN{
-		name:   name,
-		mtu:    mtu,
-		offset: offset,
+		offset: 4,
 		rSizes: make([]int, 1),
 		rBuffs: make([][]byte, 1),
 		wBuffs: make([][]byte, 1),
 	}
-
-	forcedMTU := defaultMTU
-	if t.mtu > 0 {
-		forcedMTU = int(t.mtu)
-	}
-
-	nt, err := createTUN(t.name, forcedMTU)
+	nt, err := tun.CreateTUNFromFile(os.NewFile(uintptr(fd), "utun"), 0)
 	if err != nil {
 		return nil, fmt.Errorf("create tun: %w", err)
 	}
 	t.nt = nt.(*tun.NativeTun)
-
-	tunMTU, err := nt.MTU()
+	mtu, err := nt.MTU()
 	if err != nil {
 		return nil, fmt.Errorf("get mtu: %w", err)
 	}
-	t.mtu = uint32(tunMTU)
-
-	ep, err := iobased.New(t, t.mtu, offset)
+	ep, err := iobased.New(t, uint32(mtu), 4)
 	if err != nil {
 		return nil, fmt.Errorf("create endpoint: %w", err)
 	}
 	t.Endpoint = ep
-
 	return t, nil
 }
 
@@ -82,11 +66,6 @@ func (t *TUN) Write(packet []byte) (int, error) {
 	defer t.wMutex.Unlock()
 	t.wBuffs[0] = packet
 	return t.nt.Write(t.wBuffs, t.offset)
-}
-
-func (t *TUN) Name() string {
-	name, _ := t.nt.Name()
-	return name
 }
 
 func (t *TUN) Close() error {
