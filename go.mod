@@ -4,11 +4,8 @@ go 1.22.0
 
 require (
 	github.com/docker/go-units v0.5.0
-	github.com/go-gost/relay v0.5.0
 	github.com/google/uuid v1.6.0
-	github.com/gorilla/schema v1.3.0
 	go.uber.org/atomic v1.11.0
-	golang.org/x/crypto v0.23.0
 	golang.org/x/sys v0.20.0
 	golang.org/x/time v0.5.0
 	golang.zx2c4.com/wireguard v0.0.0-20231211153847-12269c276173
